@@ -4,8 +4,8 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 const USDC_MODE = false;
-const COLLECTION_NAME = "SMB";
-const COLLECTION_MINT = "SMBH3wF6baUj6JWtzYvqcKuj2XCKWDqQxzspY12xPND";
+const COLLECTION_NAME = "DEGODS";
+const COLLECTION_MINT = "6XxjKYFbcndh2gDcsUrmZgVEsoDxXMnfsaGY6fpTJzNr";
 const MARKET_NAME = `${COLLECTION_NAME}-${USDC_MODE ? "USDC" : "SOL"}`;
 const API_KEY = process.env.API_KEY;
 export const API_BASE_URL = "https://api.helius.xyz/";
@@ -15,9 +15,8 @@ const MAX_LEVELS = 8;
 
 (async () => {
     const currentPrice = await fetchCurrentSOLPrice();
+    
     const data = await fetchListings(COLLECTION_MINT);
-    const bidEvents = await fetchBidEvents(COLLECTION_MINT);
-
     // map data to listings
     const listings = data.map((listing) => {
         return {
@@ -45,7 +44,10 @@ const MAX_LEVELS = 8;
         .sort((a, b) => b.price - a.price)
         .slice(-MAX_LEVELS);
 
+
+    
     // sort into list of bids and bids cancelled
+    const bidEvents = await fetchBidEvents(COLLECTION_MINT);
     const bids = bidEvents.filter((event: any) => event.type === "NFT_BID");
     const bidsCancelled = bidEvents.filter(
         (event: any) => event.type === "NFT_BID_CANCELLED"
