@@ -1,51 +1,38 @@
 import { fetchCurrentSOLPrice, fetchListings, fetchBidEvents } from "./utils";
+import { ListingsConverter } from "./classes/ListingsConverter";
+import { ListingsManager } from "./classes/ListingsManager";
 import { L2OrderbookLevels, L2Orderbook } from "./interfaces/L2OrderbookLevels";
 import * as dotenv from 'dotenv'; 
 
 dotenv.config();
-const USDC_MODE = false;
+const USDC_MODE = true;
 const COLLECTION_NAME = "DEGODS";
 const COLLECTION_MINT = "6XxjKYFbcndh2gDcsUrmZgVEsoDxXMnfsaGY6fpTJzNr";
+const MAX_LEVELS = 16;
+
 const MARKET_NAME = `${COLLECTION_NAME}-${USDC_MODE ? "USDC" : "SOL"}`;
 const API_KEY = process.env.API_KEY;
 export const API_BASE_URL = "https://api.helius.xyz/";
 export const API_SUFFIX = `?api-key=${API_KEY}`;
-const LAMPORTS_PER_SOL = 1000000000;
-const MAX_LEVELS = 8;
+const LAMPORTS_PER_SOL = 1_000_000_000;
 
 (async () => {
     const currentPrice = await fetchCurrentSOLPrice();
-    
-    const data = await fetchListings(COLLECTION_MINT);
-    // map data to listings
-    const listings = data.map((listing) => {
-        return {
-            price: Math.round(
-                (listing.activeListings[0].amount / LAMPORTS_PER_SOL) *
-                    (USDC_MODE ? currentPrice : 1)
-            ),
-            size: 1,
-        };
+
+    // get listings
+    const lm = new ListingsManager();
+    const listings = await lm.fetchMagicEdenListings(COLLECTION_NAME);
+    const lc = new ListingsConverter();
+    const levels = lc.convertMagicEdenListingsToL2OrderbookLevels({ 
+        listings, 
+        roundPrice: true,
+        usdcMode: USDC_MODE,
+        solUsdcPrice: currentPrice
     });
-
-    // collapse bids to levels
-    const levels: L2OrderbookLevels = [];
-    for (const listing of listings) {
-        const level = levels.find((level) => level.price === listing.price);
-        if (level) {
-            level.size += listing.size;
-        } else {
-            levels.push(listing);
-        }
-    }
-
-    // sort levels
     const firstListings = levels
         .sort((a, b) => b.price - a.price)
         .slice(-MAX_LEVELS);
-
-
-    
+        
     // sort into list of bids and bids cancelled
     const bidEvents = await fetchBidEvents(COLLECTION_MINT);
     const bids = bidEvents.filter((event: any) => event.type === "NFT_BID");
