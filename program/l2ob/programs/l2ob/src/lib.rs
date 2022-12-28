@@ -65,7 +65,7 @@ impl L2Orderbook {
         // check minimum_price_increment is non-zero
         require!(minimum_price_increment > 0, CustomError::MinimumPriceIncrementZero);
 
-        // TODO: check orderbook is not already initialized
+        // check orderbook is not already initialized
         require!(!self.is_initialized, CustomError::AlreadyInitialized);
 
         self.authority = authority;
