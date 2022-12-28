@@ -15,8 +15,8 @@ pub mod l2ob {
         quote_currency: String,
         minimum_size_increment: u64,
         minimum_price_increment: u64,
-        price_exponent: u8,
-        size_exponent: u8,
+        price_exponent: i8,
+        size_exponent: i8,
     ) -> Result<()> {
         ctx.accounts.orderbook.create(
             authority,
@@ -37,7 +37,7 @@ pub mod l2ob {
 }
 
 impl L2Orderbook {
-    pub const MAXIMUM_SIZE: usize = 32 + 8 + 8 + 16 + 16 + 16 + 8 + 8 + 1 + 1 + 1024 + 1024;
+    pub const MAXIMUM_SIZE: usize = 32 + 16 + 16 + 16 + 1 + 1 + 8 + 8 + 8 + 8 + 512 + 512 + 1 + 1;
 
     pub fn create(
         &mut self,
@@ -47,23 +47,26 @@ impl L2Orderbook {
         quote_currency: String,
         minimum_size_increment: u64,
         minimum_price_increment: u64,
-        price_exponent: u8,
-        size_exponent: u8,
+        price_exponent: i8,
+        size_exponent: i8,
     ) -> Result<()> {
         // check market is non-empty
         require!(!market.is_empty(), CustomError::MarketEmpty);
 
-        // check base_currency is non-emptyΩ
+        // check base_currency is non-empty
         require!(!base_currency.is_empty(), CustomError::BaseCurrencyEmpty);
 
         // check quote_currency is non-empty
         require!(!quote_currency.is_empty(), CustomError::QuoteCurrencyEmpty);
 
-        // TODO: check minimum_size_increment is non-zero
+        // check minimum_size_increment is non-zero
+        require!(minimum_size_increment > 0, CustomError::MinimumSizeIncrementZero);
 
-        // TODO: check minimum_price_increment is non-zero
+        // check minimum_price_increment is non-zero
+        require!(minimum_price_increment > 0, CustomError::MinimumPriceIncrementZero);
 
         // TODO: check orderbook is not already initialized
+        require!(!self.is_initialized, CustomError::AlreadyInitialized);
 
         self.authority = authority;
         self.created_at = Clock::get()?.unix_timestamp;
@@ -75,20 +78,16 @@ impl L2Orderbook {
         self.minimum_price_increment = minimum_price_increment;
         self.price_exponent = price_exponent;
         self.size_exponent = size_exponent;
-        self.bids = L2Levels([
-            L2Layer {
-                price: 0,
-                size: 0,
-            };
-            64
-        ]);
-        self.asks = L2Levels([
-            L2Layer {
-                price: 0,
-                size: 0,
-            };
-            64
-        ]);
+        self.bids = [
+            [0, 0];
+            32
+        ];
+        self.asks = [
+            [0, 0];
+            32
+        ];
+        self.is_initialized = true;
+        self.is_deprecated = false;
 
         msg!("L2 Orderbook initialized 🥳");
         Ok(())
@@ -112,9 +111,8 @@ impl L2Orderbook {
 }
 
 // Data structures
-// total size: 32 + 8 + 8 + 16 + 16 + 16 + 8 + 8 + 1 + 1 + 1024 + 1024 = 2164
+// total size: 32 + 16 + 16 + 16 + 1 + 1 + 8 + 8 + 8 + 8 + 512 + 512 + 1 + 1 = 1140
 #[account]
-#[derive(Default)]
 pub struct L2Orderbook {
     // size = 32
     pub authority: Pubkey,
@@ -129,10 +127,10 @@ pub struct L2Orderbook {
     pub quote_currency_name: String,
 
     // size = 1
-    pub price_exponent: u8,
+    pub price_exponent: i8,
 
     // size = 1
-    pub size_exponent: u8,
+    pub size_exponent: i8,
     
     // size = 8
     pub minimum_price_increment: u64,
@@ -146,11 +144,38 @@ pub struct L2Orderbook {
     // size = 8
     pub updated_at: i64,
 
-    // size = support for 64 bid levels = (64 * 16) = 1024
-    pub bids: L2Levels,
+    // size = support for 32 bid levels = (32 * 16) = 1024
+    pub bids: [[u64; 2]; 32],
 
-    // size = support for 64 ask levels = (64 * 16) = 1024
-    pub asks: L2Levels,
+    // size = support for 32 ask levels = (32 * 16) = 1024
+    pub asks: [[u64; 2]; 32],
+
+    // size = 1
+    pub is_initialized: bool,
+
+    // size = 1
+    pub is_deprecated: bool,
+}
+
+impl Default for L2Orderbook {
+    fn default() -> Self {
+        Self {
+            authority: Pubkey::default(),
+            market_name: String::default(),
+            base_currency_name: String::default(),
+            quote_currency_name: String::default(),
+            minimum_size_increment: 0,
+            minimum_price_increment: 0,
+            price_exponent: 0,
+            size_exponent: 0,
+            created_at: 0,
+            updated_at: 0,
+            bids: [[0, 0]; 32],
+            asks: [[0, 0]; 32],
+            is_initialized: false,
+            is_deprecated: false,
+        }
+    }
 }
 
 // Account layouts for instructions
@@ -180,25 +205,13 @@ pub enum CustomError {
 
     #[msg("The quote currency must be non-empty.")]
     QuoteCurrencyEmpty,
-}
 
-// total size: 8 + 8 = 16
-#[account]
-#[derive(Default, Copy)]
-pub struct L2Layer {
-    // size = 8
-    pub price: u64,
-    // size = 8
-    pub size: u64,
-}
+    #[msg("The minimum size increment must be non-zero.")]
+    MinimumSizeIncrementZero,
 
-#[account]
-pub struct L2Levels([L2Layer; 64]);
-impl Default for L2Levels {
-    fn default() -> Self {
-        L2Levels([L2Layer {
-            price: 0,
-            size: 0,
-        }; 64])
-    }
+    #[msg("The minimum price increment must be non-zero.")]
+    MinimumPriceIncrementZero,
+
+    #[msg("The orderbook is already initialized.")]
+    OrderbookAlreadyInitialized,
 }
