@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("3Y7ozqoFGJoM6C4bCFmQEYTPHxT32RxNKo3qUx513p1p");
+declare_id!("9yVKseBXmeKibnuV4fBi248c9QcRhkateWrHgNynFSDZ");
 
 // Program entrypoint
 #[program]
@@ -18,7 +18,7 @@ pub mod l2ob {
         price_exponent: u8,
         size_exponent: u8,
     ) -> Result<()> {
-        ctx.accounts.l2_orderbook.create(
+        ctx.accounts.orderbook.create(
             authority,
             market,
             base_currency,
@@ -29,10 +29,15 @@ pub mod l2ob {
             size_exponent,
         )
     }
+
+    pub fn test(_ctx: Context<Test>) -> Result<()> {
+        msg!("Hello, world!");
+        Ok(())
+    }
 }
 
 impl L2Orderbook {
-    pub const MAXIMUM_SIZE: usize = 32 + 8 + 8 + 16 + 16 + 16 + 8 + 8 + 8 + 8;
+    pub const MAXIMUM_SIZE: usize = 32 + 8 + 8 + 16 + 16 + 16 + 8 + 8 + 1 + 1 + 1024 + 1024;
 
     pub fn create(
         &mut self,
@@ -70,6 +75,20 @@ impl L2Orderbook {
         self.minimum_price_increment = minimum_price_increment;
         self.price_exponent = price_exponent;
         self.size_exponent = size_exponent;
+        self.bids = L2Levels([
+            L2Layer {
+                price: 0,
+                size: 0,
+            };
+            64
+        ]);
+        self.asks = L2Levels([
+            L2Layer {
+                price: 0,
+                size: 0,
+            };
+            64
+        ]);
 
         msg!("L2 Orderbook initialized 🥳");
         Ok(())
@@ -93,7 +112,7 @@ impl L2Orderbook {
 }
 
 // Data structures
-// total size: 32 + 8 + 8 + 16 + 16 + 16 + 8 + 8 + 1 + 1 = 114
+// total size: 32 + 8 + 8 + 16 + 16 + 16 + 8 + 8 + 1 + 1 + 1024 + 1024 = 2164
 #[account]
 #[derive(Default)]
 pub struct L2Orderbook {
@@ -126,20 +145,28 @@ pub struct L2Orderbook {
 
     // size = 8
     pub updated_at: i64,
-}
 
+    // size = support for 64 bid levels = (64 * 16) = 1024
+    pub bids: L2Levels,
+
+    // size = support for 64 ask levels = (64 * 16) = 1024
+    pub asks: L2Levels,
+}
 
 // Account layouts for instructions
 #[derive(Accounts)]
 pub struct Initialize<'info> {
     #[account(init, payer = authority, space = 8 + L2Orderbook::MAXIMUM_SIZE)]
-    pub l2_orderbook: Account<'info, L2Orderbook>,
-
+    pub orderbook: Box<Account<'info, L2Orderbook>>,
     #[account(mut)]
     pub authority: Signer<'info>,
-
-
     pub system_program: Program<'info, System>
+}
+
+#[derive(Accounts)]
+pub struct Test<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>
 }
 
 // Error codes
@@ -153,4 +180,25 @@ pub enum CustomError {
 
     #[msg("The quote currency must be non-empty.")]
     QuoteCurrencyEmpty,
+}
+
+// total size: 8 + 8 = 16
+#[account]
+#[derive(Default, Copy)]
+pub struct L2Layer {
+    // size = 8
+    pub price: u64,
+    // size = 8
+    pub size: u64,
+}
+
+#[account]
+pub struct L2Levels([L2Layer; 64]);
+impl Default for L2Levels {
+    fn default() -> Self {
+        L2Levels([L2Layer {
+            price: 0,
+            size: 0,
+        }; 64])
+    }
 }
