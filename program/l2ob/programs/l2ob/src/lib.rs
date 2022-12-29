@@ -29,6 +29,56 @@ pub mod l2ob {
             size_exponent,
         )
     }
+
+    #[access_control(authorized(&ctx.accounts.orderbook, &ctx.accounts.authority))]
+    pub fn update_bids_and_asks(
+        ctx: Context<Update>,
+        bids: [[u64; 2]; 32],
+        asks: [[u64; 2]; 32],
+    ) -> Result<()> {        
+        ctx.accounts.orderbook.update_bids_and_asks(bids, asks)
+    }
+
+    #[access_control(authorized(&ctx.accounts.orderbook, &ctx.accounts.authority))]
+    pub fn update_bids(ctx: Context<Update>, bids: [[u64; 2]; 32]) -> Result<()> {        
+        ctx.accounts.orderbook.update_bids(bids)
+    }
+
+    #[access_control(authorized(&ctx.accounts.orderbook, &ctx.accounts.authority))]
+    pub fn update_asks(ctx: Context<Update>, asks: [[u64; 2]; 32]) -> Result<()> {        
+        ctx.accounts.orderbook.update_asks(asks)
+    }
+
+    #[access_control(authorized(&ctx.accounts.orderbook, &ctx.accounts.authority))]
+    pub fn update_market(
+        ctx: Context<Update>,
+        market: String,
+        base_currency: String,
+        quote_currency: String,
+    ) -> Result<()> {
+        ctx.accounts
+            .orderbook
+            .update_market(market, base_currency, quote_currency)
+    }
+
+    #[access_control(authorized(&ctx.accounts.orderbook, &ctx.accounts.authority))]
+    pub fn deprecate(ctx: Context<Update>) -> Result<()> {
+        ctx.accounts.orderbook.set_deprecated()
+    }
+
+    #[access_control(authorized(&ctx.accounts.orderbook, &ctx.accounts.authority))]
+    pub fn undeprecate(ctx: Context<Update>) -> Result<()> {
+        ctx.accounts.orderbook.set_not_deprecated()
+    }
+
+    #[access_control(authorized(&ctx.accounts.orderbook, &ctx.accounts.authority))]
+    pub fn transfer_authority(
+        ctx: Context<Update>,
+        new_authority: Pubkey,
+    ) -> Result<()> {
+
+        ctx.accounts.orderbook.transfer_authority(new_authority)
+    }
 }
 
 impl L2Orderbook {
@@ -167,7 +217,7 @@ impl L2Orderbook {
         Ok(())
     }
 
-    pub fn update_authority(&mut self, authority: Pubkey) -> Result<()> {
+    pub fn transfer_authority(&mut self, authority: Pubkey) -> Result<()> {
         // update authority
         self.authority = authority;
         self.updated_at = Clock::get()?.unix_timestamp;
@@ -217,43 +267,30 @@ impl L2Orderbook {
 pub struct L2Orderbook {
     // size = 32
     pub authority: Pubkey,
-
     // size = 4 + max string size in bytes = 16
     pub market_name: String,
-
     // size = 4 + max string size in bytes = 16
     pub base_currency_name: String,
-
     // size = 4 + max string size in bytes = 16
     pub quote_currency_name: String,
-
     // size = 1
     pub price_exponent: i8,
-
     // size = 1
     pub size_exponent: i8,
-
     // size = 8
     pub minimum_price_increment: u64,
-
     // size = 8
     pub minimum_size_increment: u64,
-
     // size = 8
     pub created_at: i64,
-
     // size = 8
     pub updated_at: i64,
-
     // size = support for 32 bid levels = (32 * 16) = 1024
     pub bids: [[u64; 2]; 32],
-
     // size = support for 32 ask levels = (32 * 16) = 1024
     pub asks: [[u64; 2]; 32],
-
     // size = 1
     pub is_initialized: bool,
-
     // size = 1
     pub is_deprecated: bool,
 }
@@ -288,6 +325,14 @@ pub struct Initialize<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+pub struct Update<'info> {
+    #[account(mut, has_one = authority)]
+    pub orderbook: Box<Account<'info, L2Orderbook>>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
+}
+
 // Error codes
 #[error_code]
 pub enum CustomError {
@@ -317,4 +362,12 @@ pub enum CustomError {
 
     #[msg("The orderbook is already deprecated.")]
     OrderbookAlreadyDeprecated,
+
+    #[msg("You are not permitted to perform this action.")]
+    InvalidAuthority
+}
+
+fn authorized(orderbook: &L2Orderbook, signer: &AccountInfo) -> Result<()> {
+    require!(signer.key.eq(&orderbook.authority), CustomError::InvalidAuthority);
+    Ok(())
 }
