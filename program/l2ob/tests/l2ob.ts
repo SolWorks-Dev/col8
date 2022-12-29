@@ -28,7 +28,7 @@ describe("l2ob", () => {
       minimumPriceIncrement: new Decimal(minimumPriceIncrement, priceExponent),
     });
 
-    console.log(JSON.stringify(await sdk.getOrderbook(orderbook)));
+    console.log(JSON.stringify(await sdk.getOrderbook(orderbook) , null, 2));
     const ob = await program.account.l2Orderbook.fetch(orderbook);
     assert.equal(ob.baseCurrencyName, base);
     assert.equal(ob.quoteCurrencyName, quote);

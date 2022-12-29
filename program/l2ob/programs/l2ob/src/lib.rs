@@ -29,11 +29,6 @@ pub mod l2ob {
             size_exponent,
         )
     }
-
-    pub fn test(_ctx: Context<Test>) -> Result<()> {
-        msg!("Hello, world!");
-        Ok(())
-    }
 }
 
 impl L2Orderbook {
@@ -53,20 +48,27 @@ impl L2Orderbook {
         // check market is non-empty
         require!(!market.is_empty(), CustomError::MarketEmpty);
 
-        // check base_currency is non-empty
+        // check base and quote currency are non-empty
         require!(!base_currency.is_empty(), CustomError::BaseCurrencyEmpty);
-
-        // check quote_currency is non-empty
         require!(!quote_currency.is_empty(), CustomError::QuoteCurrencyEmpty);
 
         // check minimum_size_increment is non-zero
-        require!(minimum_size_increment > 0, CustomError::MinimumSizeIncrementZero);
+        require!(
+            minimum_size_increment > 0,
+            CustomError::MinimumSizeIncrementZero
+        );
 
         // check minimum_price_increment is non-zero
-        require!(minimum_price_increment > 0, CustomError::MinimumPriceIncrementZero);
+        require!(
+            minimum_price_increment > 0,
+            CustomError::MinimumPriceIncrementZero
+        );
 
         // check orderbook is not already initialized
-        require!(!self.is_initialized, CustomError::AlreadyInitialized);
+        require!(
+            !self.is_initialized,
+            CustomError::OrderbookAlreadyInitialized
+        );
 
         self.authority = authority;
         self.created_at = Clock::get()?.unix_timestamp;
@@ -78,14 +80,8 @@ impl L2Orderbook {
         self.minimum_price_increment = minimum_price_increment;
         self.price_exponent = price_exponent;
         self.size_exponent = size_exponent;
-        self.bids = [
-            [0, 0];
-            32
-        ];
-        self.asks = [
-            [0, 0];
-            32
-        ];
+        self.bids = [[0, 0]; 32];
+        self.asks = [[0, 0]; 32];
         self.is_initialized = true;
         self.is_deprecated = false;
 
@@ -93,7 +89,12 @@ impl L2Orderbook {
         Ok(())
     }
 
-    pub fn update_market(&mut self, market: String, base_currency: String, quote_currency: String) -> Result<()> {
+    pub fn update_market(
+        &mut self,
+        market: String,
+        base_currency: String,
+        quote_currency: String,
+    ) -> Result<()> {
         // check market is non-empty
         require!(!market.is_empty(), CustomError::MarketEmpty);
 
@@ -103,9 +104,109 @@ impl L2Orderbook {
         // check quote_currency is non-empty
         require!(!quote_currency.is_empty(), CustomError::QuoteCurrencyEmpty);
 
+        // update market name, base and quote currencies
         self.market_name = market;
         self.base_currency_name = base_currency;
         self.quote_currency_name = quote_currency;
+        self.updated_at = Clock::get()?.unix_timestamp;
+        Ok(())
+    }
+
+    pub fn update_bids_and_asks(
+        &mut self,
+        bids: [[u64; 2]; 32],
+        asks: [[u64; 2]; 32],
+    ) -> Result<()> {
+        // check bids and asks are correct length
+        require!(bids.len() == 32, CustomError::BidsLengthIncorrect);
+        require!(asks.len() == 32, CustomError::AsksLengthIncorrect);
+
+        // update bids and asks
+        self.bids = bids;
+        self.asks = asks;
+        self.updated_at = Clock::get()?.unix_timestamp;
+        Ok(())
+    }
+
+    pub fn update_bids(&mut self, bids: [[u64; 2]; 32]) -> Result<()> {
+        // check bids are correct length
+        require!(bids.len() == 32, CustomError::BidsLengthIncorrect);
+
+        // update bids
+        self.bids = bids;
+        self.updated_at = Clock::get()?.unix_timestamp;
+        Ok(())
+    }
+
+    pub fn update_asks(&mut self, asks: [[u64; 2]; 32]) -> Result<()> {
+        // check asks are correct length
+        require!(asks.len() == 32, CustomError::AsksLengthIncorrect);
+
+        // update asks
+        self.asks = asks;
+        self.updated_at = Clock::get()?.unix_timestamp;
+        Ok(())
+    }
+
+    pub fn set_deprecated(&mut self) -> Result<()> {
+        // check orderbook is not already deprecated
+        require!(!self.is_deprecated, CustomError::OrderbookAlreadyDeprecated);
+
+        // deprecate orderbook
+        self.is_deprecated = true;
+        self.updated_at = Clock::get()?.unix_timestamp;
+        Ok(())
+    }
+
+    pub fn set_not_deprecated(&mut self) -> Result<()> {
+        // TODO: check orderbook is deprecated
+
+        // "un"-deprecate orderbook
+        self.is_deprecated = false;
+        self.updated_at = Clock::get()?.unix_timestamp;
+        Ok(())
+    }
+
+    pub fn update_authority(&mut self, authority: Pubkey) -> Result<()> {
+        // update authority
+        self.authority = authority;
+        self.updated_at = Clock::get()?.unix_timestamp;
+        Ok(())
+    }
+
+    pub fn update_minimum_size_increment_and_exponent(
+        &mut self,
+        minimum_size_increment: u64,
+        size_exponent: i8,
+    ) -> Result<()> {
+        // check minimum_size_increment is non-zero
+        require!(
+            minimum_size_increment > 0,
+            CustomError::MinimumSizeIncrementZero
+        );
+
+        // update minimum_size_increment and size_exponent
+        self.minimum_size_increment = minimum_size_increment;
+        self.size_exponent = size_exponent;
+        self.updated_at = Clock::get()?.unix_timestamp;
+        Ok(())
+    }
+
+    pub fn update_minimum_price_increment_and_exponent(
+        &mut self,
+        minimum_price_increment: u64,
+        price_exponent: i8,
+    ) -> Result<()> {
+        // check minimum_price_increment is non-zero
+        require!(
+            minimum_price_increment > 0,
+            CustomError::MinimumPriceIncrementZero
+        );
+
+        // update minimum_price_increment and price_exponent
+        self.minimum_price_increment = minimum_price_increment;
+        self.price_exponent = price_exponent;
+        self.updated_at = Clock::get()?.unix_timestamp;
         Ok(())
     }
 }
@@ -116,7 +217,7 @@ impl L2Orderbook {
 pub struct L2Orderbook {
     // size = 32
     pub authority: Pubkey,
-    
+
     // size = 4 + max string size in bytes = 16
     pub market_name: String,
 
@@ -131,7 +232,7 @@ pub struct L2Orderbook {
 
     // size = 1
     pub size_exponent: i8,
-    
+
     // size = 8
     pub minimum_price_increment: u64,
 
@@ -156,7 +257,6 @@ pub struct L2Orderbook {
     // size = 1
     pub is_deprecated: bool,
 }
-
 impl Default for L2Orderbook {
     fn default() -> Self {
         Self {
@@ -185,13 +285,7 @@ pub struct Initialize<'info> {
     pub orderbook: Box<Account<'info, L2Orderbook>>,
     #[account(mut)]
     pub authority: Signer<'info>,
-    pub system_program: Program<'info, System>
-}
-
-#[derive(Accounts)]
-pub struct Test<'info> {
-    #[account(mut)]
-    pub authority: Signer<'info>
+    pub system_program: Program<'info, System>,
 }
 
 // Error codes
@@ -214,4 +308,13 @@ pub enum CustomError {
 
     #[msg("The orderbook is already initialized.")]
     OrderbookAlreadyInitialized,
+
+    #[msg("The bids array must be 32 levels.")]
+    BidsLengthIncorrect,
+
+    #[msg("The asks array must be 32 levels.")]
+    AsksLengthIncorrect,
+
+    #[msg("The orderbook is already deprecated.")]
+    OrderbookAlreadyDeprecated,
 }
