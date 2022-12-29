@@ -3,6 +3,7 @@ import { Program } from "@project-serum/anchor";
 import { assert } from "chai";
 import { Decimal, SDK } from "../SDK";
 import { L2ob } from "../target/types/l2ob";
+import { DummyBids } from "./MockData";
 
 describe("l2ob", () => {
   const provider = anchor.AnchorProvider.env();
@@ -28,7 +29,6 @@ describe("l2ob", () => {
       minimumPriceIncrement: new Decimal(minimumPriceIncrement, priceExponent),
     });
 
-    console.log(JSON.stringify(await sdk.getOrderbook(orderbook) , null, 2));
     const ob = await program.account.l2Orderbook.fetch(orderbook);
     assert.equal(ob.baseCurrencyName, base);
     assert.equal(ob.quoteCurrencyName, quote);
@@ -55,7 +55,10 @@ describe("l2ob", () => {
         base,
         quote,
         minimumSizeIncrement: new Decimal(minimumSizeIncrement, sizeExponent),
-        minimumPriceIncrement: new Decimal(minimumPriceIncrement, priceExponent),
+        minimumPriceIncrement: new Decimal(
+          minimumPriceIncrement,
+          priceExponent
+        ),
       });
       assert.fail("Should have failed");
     } catch {
@@ -78,11 +81,131 @@ describe("l2ob", () => {
         base,
         quote,
         minimumSizeIncrement: new Decimal(minimumSizeIncrement, sizeExponent),
-        minimumPriceIncrement: new Decimal(minimumPriceIncrement, priceExponent),
+        minimumPriceIncrement: new Decimal(
+          minimumPriceIncrement,
+          priceExponent
+        ),
       });
       assert.fail("Should have failed");
     } catch {
       assert.ok(true);
+    }
+  });
+
+  it("Update bids", async () => {
+    const auth = provider.publicKey;
+    const base = "DEGODS";
+    const quote = "USDC";
+    const minimumSizeIncrement = 1;
+    const sizeExponent = 0;
+    const minimumPriceIncrement = 1;
+    const priceExponent = 0;
+
+    const { orderbook } = await sdk.initialize({
+      admin: auth,
+      base,
+      quote,
+      minimumSizeIncrement: new Decimal(minimumSizeIncrement, sizeExponent),
+      minimumPriceIncrement: new Decimal(minimumPriceIncrement, priceExponent),
+    });
+
+    const bids = DummyBids;
+    await sdk.updateBids({
+      orderbook,
+      bids,
+      authority: auth,
+      padWithZeroes: true,
+    });
+
+    const ob = await program.account.l2Orderbook.fetch(orderbook);
+
+    assert.equal((ob.bids as []).length, 32);
+    for (let i = 0; i < bids.length; i++) {
+      assert.equal(ob.bids[i][0].toNumber(), bids[i][0]);
+      assert.equal(ob.bids[i][1].toNumber(), bids[i][1]);
+    }
+  });
+
+  it("Update asks", async () => {
+    const auth = provider.publicKey;
+    const base = "DEGODS";
+    const quote = "USDC";
+    const minimumSizeIncrement = 1;
+    const sizeExponent = 0;
+    const minimumPriceIncrement = 1;
+    const priceExponent = 0;
+
+    const { orderbook } = await sdk.initialize({
+      admin: auth,
+      base,
+      quote,
+      minimumSizeIncrement: new Decimal(minimumSizeIncrement, sizeExponent),
+      minimumPriceIncrement: new Decimal(minimumPriceIncrement, priceExponent),
+    });
+
+    const asks = DummyBids;
+    await sdk.updateAsks({
+      orderbook,
+      asks,
+      authority: auth,
+      padWithZeroes: true,
+    });
+
+    const ob = await program.account.l2Orderbook.fetch(orderbook);
+
+    assert.equal((ob.asks as []).length, 32);
+    for (let i = 0; i < asks.length; i++) {
+      assert.equal(ob.asks[i][0].toNumber(), asks[i][0]);
+      assert.equal(ob.asks[i][1].toNumber(), asks[i][1]);
+    }
+  });
+
+  it("Update bids and asks", async () => {
+    const auth = provider.publicKey;
+    const base = "DEGODS";
+    const quote = "USDC";
+    const minimumSizeIncrement = 1;
+    const sizeExponent = 0;
+    const minimumPriceIncrement = 1;
+    const priceExponent = 0;
+
+    const { orderbook } = await sdk.initialize({
+      admin: auth,
+      base,
+      quote,
+      minimumSizeIncrement: new Decimal(minimumSizeIncrement, sizeExponent),
+      minimumPriceIncrement: new Decimal(minimumPriceIncrement, priceExponent),
+    });
+
+    const bids = DummyBids;
+    const asks = DummyBids;
+    await sdk.updateBids({
+      orderbook,
+      bids,
+      authority: auth,
+      padWithZeroes: true,
+    });
+    await sdk.updateAsks({
+      orderbook,
+      asks,
+      authority: auth,
+      padWithZeroes: true,
+    });
+
+    console.log(JSON.stringify(await sdk.getOrderbook(orderbook)));
+    const ob = await program.account.l2Orderbook.fetch(orderbook);
+
+    assert.equal((ob.bids as []).length, 32);
+    assert.equal((ob.asks as []).length, 32);
+
+    for (let i = 0; i < bids.length; i++) {
+      assert.equal(ob.bids[i][0].toNumber(), bids[i][0]);
+      assert.equal(ob.bids[i][1].toNumber(), bids[i][1]);
+    }
+
+    for (let i = 0; i < asks.length; i++) {
+      assert.equal(ob.asks[i][0].toNumber(), asks[i][0]);
+      assert.equal(ob.asks[i][1].toNumber(), asks[i][1]);
     }
   });
 });
